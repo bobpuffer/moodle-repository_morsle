@@ -405,7 +405,7 @@ class repository_morsle extends repository {
 	    }
 	    if ($random100 > 45 && $random100 < 55) {     // Approximately every hour
 	        mtrace(date(DATE_ATOM) . " - Running m_maintain...");
-//			$status = $this->m_maintain();
+			$status = $this->m_maintain();
 	        mtrace(date(DATE_ATOM) . " - Done m_maintain: $status");
 	    }
 	    if ($random100 > 90) {     // Approximately every hour.
@@ -459,7 +459,7 @@ class repository_morsle extends repository {
         //	one of the fields - password, readfolderid, writefolderid, groupname, siteid must be NULL (creation)
         */
         $creation_clause = " m.status NOT IN($this->disregard)
-                AND ((c.startdate > $this->curtime - $this->expires) OR c.startdate = 0)
+                AND c.startdate > $this->curtime - $this->expires
                 AND (m.readfolderid IS NULL OR m.writefolderid IS NULL OR m.groupname IS NULL OR m.siteid IS NULL)";
         $sql = 'SELECT m.* from ' . $CFG->prefix . 'morsle_active m
                 JOIN ' . $CFG->prefix . 'course c on m.courseid = c.id
@@ -497,28 +497,28 @@ class repository_morsle extends repository {
                 switch ($key) {
                     case 'password': // create user account
                         $this->useremail = 'admin-moogle@luther.edu';
-//                        $this->get_token('user');
+                        $this->get_token('user');
                         $this->revoke_token();
                         $this->get_token('user');
                         $returnval = $this->useradd(); // either password coming back or $response->response
                         break;
                     case 'groupname': // add group
                         $this->useremail = 'admin-moogle@luther.edu';
-                        $this->get_token('group');
+                        $this->get_token('user');
                         $this->revoke_token();
                         $this->get_token('group');
                         $returnval = $this->groupadd($groupname);
                         break;
                     case 'readfolderid': // create readonly folder
                         $this->useremail = $this->shortname . '@luther.edu';
-                        $this->get_token('drive');
+                        $this->get_token('user');
                         $this->revoke_token();
                         $this->get_token('drive');
                         $returnval = createcollection($this, $this->shortname . '-read');
                         break;
                     case 'writefolderid': // create writeable folder
                         $this->useremail = $this->shortname . '@luther.edu';
-                        $this->get_token('drive');
+                        $this->get_token('user');
                         $this->revoke_token();
                         $this->get_token('drive');
                         $returnval = createcollection($this, $this->shortname . '-write');
@@ -729,19 +729,19 @@ class repository_morsle extends repository {
     */
 
     function m_maintain($course = null) {
-        global $CFG, $DB,$COURSE;
-        require_once('../../config.php');
+//        global $CFG, $DB,$COURSE;
+        require_once('/var/www/moodle/config.php');
 //		$this->get_aliases();
 
         $courseclause = $course != null ? " AND m.shortname = '" .  strtolower($course) .  "'": null;
         $sql = 'SELECT m.*, c.visible as visible, c.category as category from ' . $CFG->prefix . 'morsle_active m
                 JOIN ' . $CFG->prefix . 'course c on m.courseid = c.id
                 WHERE m.status NOT IN(' . $this->disregard . ')
-                AND ((c.startdate + ' . $this->expires . ' > ' . $this->curtime . ') OR c.startdate = 0)
-                AND c.id > 6412'
+                AND ((c.startdate + ' . $this->expires . ' > ' . $this->curtime . ') OR c.startdate = 0)'
                 . $courseclause;
 
         $chewon = $DB->get_records_sql($sql);
+        var_dump($chewon);
         $random = rand(0,9);
         foreach ($chewon as $record) {
             $this->shortname = $record->shortname;
@@ -795,6 +795,7 @@ class repository_morsle extends repository {
             $garray = array('editingteacher' => 'writer','teacher' => 'writer','student' => 'reader','guest' => 'reader');
             $allusers = $rosters;
             array_walk($allusers,'set_googlerole', $garray);
+            var_dump($allusers);
             $this->gmembers = $this->set_calendarpermissions($allusers, $record);
         }
 
@@ -923,7 +924,7 @@ class repository_morsle extends repository {
             $permission->setValue($emailAddress);
             $permission->setType('user');
             $permission->setRole($role);
-            $return = $this->service->permissions->insert($folderid, $permission, array('sendNotificationEmails' => 0));
+            $return = $this->service->permissions->insert($folderid, $permission);
             $batch->add($return, $emailAddress);
         }
 
@@ -999,8 +1000,8 @@ class repository_morsle extends repository {
     }
 
     function set_calendarpermissions($members = null, $record = null) {
-        require_once('../../config.php');
-
+        require_once('/var/www/moodle/config.php');
+echo 'got here';
         if (!$acl = $this->get_calendarpermissions()) {
             return;
         }
@@ -1053,7 +1054,7 @@ class repository_morsle extends repository {
              * and send multiple batch requests (Each Google Batch Request has a size limit of 50)
              */
             //case 1:
-            if (count($added) == 1){
+            if (count($added) = 1){
                 foreach($added as $member => $role) {
                     $this->add_user_permission($this->shortname.'@luther.edu', $member, $role);
                 }
@@ -1083,7 +1084,7 @@ class repository_morsle extends repository {
         try {
             //perform authentication for Google Calendar
             //get all acl rules for this course's calendar from Google
-            $acl = $this->list_acl_rules($this->shortname.'@luther.edu', array('maxResults' => '250'));
+            $acl = $this->list_acl_rules($this->shortname.'@luther.edu');
         } catch (Exception $ex) {
             return null;
         }
@@ -1103,7 +1104,7 @@ class repository_morsle extends repository {
      * gets all participants in a moodle course with optional role filtering
      * returns array of user->email keys and role values
     */
-	function get_roster($onlyrole=null) {
+    function get_roster($onlyrole=null) {
         //edited below, replaced old method
         $coursecontext = context_course::instance($this->courseid);
         $allroles = get_roles_used_in_context($coursecontext);
@@ -1135,28 +1136,13 @@ class repository_morsle extends repository {
         $suspended = get_suspended_userids($coursecontext);
         foreach ($course->users as $cuser) {
             if (array_key_exists($cuser->id, $suspended)) {
-                
-                /* Explanation of changes made: */
-                //edited use of unset below: previous implementation wasn't working
-                //because $cuser->id was a number larger than the size of 
-                //$course->users. 
-                //$course->users is an array of stdClass objects, which have their own IDs, 
-                //but those IDs could not be directly accessed in $course->users without callling on the $cuser object.
-                //So the compiler was seeing $cuser->id as an index into the array $course->users
-                //$cuser->id is normally too large to be used to index into $course->users
-                //unset was not working because the index $cuser->id was out of range (larger than the size of $course->users)
-                //
-                ///*unset($course->users[$cuser->id]);*/
-                //solution has been reimplemented below, and it should now work (hopefully)
-                $deleteUser = array_search($cuser, $course->users);
-                unset($course->users[$deleteUser]);
+                unset($course->users[$cuser->id]);
             } else if ($onlyrole === null || $onlyrole == $allroles[$cuser->roleid]->shortname) {
                 $members[strtolower($cuser->email)] = $allroles[$cuser->roleid]->shortname;
             }
         }
         return $members;
-    }    
-    
+    }
     /*
      * Get aliases so we can avoid constantly adding and deleting them in the activity
     */
@@ -1247,7 +1233,7 @@ class repository_morsle extends repository {
         $scope->setValue($userEmail);
         $rule->setScope($scope);
         $rule->setRole($role);
-        return $this->service->acl->insert($calendarId, $rule, array('sendNotificationEmails' => 0));
+        return $this->service->acl->insert($calendarId, $rule);
     }
 
     /** Batch version of function to add user calendar permissions based on user's role in course
@@ -1257,19 +1243,12 @@ class repository_morsle extends repository {
      * 
      */
     function batch_add_user_permissions($calendarId, $value=array()) {
-        $this->get_token('calendar');
         $this->client->setUseBatch(true); //enable batch use
         $batch = new Google_Http_Batch($this->client); //Http batch object
-        $rule = new Google_Service_Calendar_AclRule();
-        $scope = new Google_Service_Calendar_AclRuleScope();
-        $scope->setType('user');
-        foreach ($value as $user=>$role) {
+        foreach ($value as $user=>$sharePermissions) {
             try {
-                $scope->setValue($user);
-                $rule->setScope($scope);
-                $rule->setRole($role);
-                $return = $this->service->acl->insert($calendarId, $rule, array('sendNotificationEmails' => 0));
-                $batch->add($return, $user);
+                $createdRule = $this->add_user_permission($calendarId, $user, $role = $sharePermissions);
+                $batch->add($createdRule, $user);
             } catch (Exception $e) {
                 print "An error occurred: " . $e->getMessage();
             } 

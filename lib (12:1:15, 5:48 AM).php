@@ -1103,7 +1103,7 @@ class repository_morsle extends repository {
      * gets all participants in a moodle course with optional role filtering
      * returns array of user->email keys and role values
     */
-	function get_roster($onlyrole=null) {
+    function get_roster($onlyrole=null) {
         //edited below, replaced old method
         $coursecontext = context_course::instance($this->courseid);
         $allroles = get_roles_used_in_context($coursecontext);
@@ -1135,28 +1135,13 @@ class repository_morsle extends repository {
         $suspended = get_suspended_userids($coursecontext);
         foreach ($course->users as $cuser) {
             if (array_key_exists($cuser->id, $suspended)) {
-                
-                /* Explanation of changes made: */
-                //edited use of unset below: previous implementation wasn't working
-                //because $cuser->id was a number larger than the size of 
-                //$course->users. 
-                //$course->users is an array of stdClass objects, which have their own IDs, 
-                //but those IDs could not be directly accessed in $course->users without callling on the $cuser object.
-                //So the compiler was seeing $cuser->id as an index into the array $course->users
-                //$cuser->id is normally too large to be used to index into $course->users
-                //unset was not working because the index $cuser->id was out of range (larger than the size of $course->users)
-                //
-                ///*unset($course->users[$cuser->id]);*/
-                //solution has been reimplemented below, and it should now work (hopefully)
-                $deleteUser = array_search($cuser, $course->users);
-                unset($course->users[$deleteUser]);
+                unset($course->users[$cuser->id]);
             } else if ($onlyrole === null || $onlyrole == $allroles[$cuser->roleid]->shortname) {
                 $members[strtolower($cuser->email)] = $allroles[$cuser->roleid]->shortname;
             }
         }
         return $members;
-    }    
-    
+    }
     /*
      * Get aliases so we can avoid constantly adding and deleting them in the activity
     */

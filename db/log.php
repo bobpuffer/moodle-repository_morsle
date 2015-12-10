@@ -16,22 +16,19 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Post installation and migration code.
+ * Definition of log events
  *
- * This file replaces:
- *   - STATEMENTS section in db/install.xml
- *   - lib.php/modulename_install() post installation hook
- *   - partially defaults.php
- *
- * @package    mod
- * @subpackage url
- * @copyright  2009 Petr Skoda  {@link http://skodak.org}
+ * @package    mod_morsle
+ * @category   log
+ * @copyright  2010 Petr Skoda (http://skodak.org)
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-defined('MOODLE_INTERNAL') || die;
+defined('MOODLE_INTERNAL') || die();
 
-function xmldb_morsle_install() {
-    global $CFG;
-
-}
+$logs = array(
+    array('module'=>'morsle', 'action'=>'view', 'mtable'=>'morsle', 'field'=>'name'),
+    array('module'=>'morsle', 'action'=>'view all', 'mtable'=>'morsle', 'field'=>'name'),
+    array('module'=>'morsle', 'action'=>'update', 'mtable'=>'morsle', 'field'=>'name'),
+    array('module'=>'morsle', 'action'=>'add', 'mtable'=>'morsle', 'field'=>'name'),
+);
