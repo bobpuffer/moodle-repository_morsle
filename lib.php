@@ -54,11 +54,6 @@ class repository_morsle extends repository {
         if ( !$this->domain = get_config('morsle','consumer_key')) {
         	throw new moodle_exception('Consumer key not set up');
         }
-
-        if (!$this->admin = get_config('block_morsle','google_admin')) {
-            throw new moodle_exception('Google admin not setup');
-        }
-
         parent::__construct($this->repositoryid, $this->context, $this->options, $this->readonly);
 
         // days past last enrollment day that morsle resources are retained
@@ -67,15 +62,17 @@ class repository_morsle extends repository {
         $this->curtime = time();
         // set basefeeds
         $this->user_auth = "https://www.googleapis.com/auth/admin.directory.user";
+        $this->site_feed = "https://sites.google.com/feeds/site/$this->domain";
         $this->drive_auth = 'https://www.googleapis.com/auth/drive ';
         $this->file_auth = 'https://www.googleapis.com/auth/drive.file ';
-//        $this->alias_feed = "https://apps-apis.google.com/a/feeds/alias/2.0/$this->domain/?start=aaaarnold@luther.edu";
+        $this->alias_feed = "https://apps-apis.google.com/a/feeds/alias/2.0/$this->domain/?start=aaaarnold@luther.edu";
         $this->group_auth = 'https://www.googleapis.com/auth/admin.directory.group';
         $this->id_feed = 'https://docs.google.com/feeds/id/';
         $this->cal_auth = 'https://www.googleapis.com/auth/calendar';
 	    $this->owncalendars_feed = 'https://www.google.com/calendar/feeds/default/owncalendars/full';
 	    // skip marked for delete, unapproved and past term
-        $this->disregard = "'Past Term','DELETED'"; 
+        $this->disregard = "'Past Term','DELETED'";
+        $this->setup_client();
     }
 
     function setup_client() {
@@ -155,6 +152,7 @@ class repository_morsle extends repository {
 	global $CFG, $USER, $OUTPUT, $COURSE, $DB;
 	require_once("$CFG->dirroot/google/constants.php");
 	require_once('course_constants.php');
+    require_once("$CFG->dirroot/blocks/morsle/morsle.php");
 
 	$ret = array();
         $ret['dynload'] = true;
@@ -164,6 +162,7 @@ class repository_morsle extends repository {
 
         $useraccount = $USER->email;
         $user = $useraccount;
+        $morsle = new morsle($user);
 
         $deptstr = get_string('departmentaccountstring', 'repository_morsle');
 
@@ -227,23 +226,25 @@ class repository_morsle extends repository {
                 if ($search_path !== null) { // looking for another folder's contents
                         $search['folder'] = $search_path;
                 }
-               $mauth = new morsle_oauth_request(null, null, $search); // subauthtoken ignored
-//		unset($search['repo_id']);
-                $mdocs = new morsle_docs($mauth);
-                $ret['list'] = $mdocs->get_file_list($search, $this);
+//               $mauth = new morsle_oauth_request(null, null, $search); // subauthtoken ignored
+                unset($search['repo_id']);
+//                $mdocs = new morsle_docs($mauth);
                 // get user level folders or documents
                 $user = $useraccount;
                 $title = get_string('useraccountstring', 'repository_morsle') . $user;
+//                $collectionid = get_collection($morsle, 'root');
+                $files = $this->get_doc_feed($morsle, 'root');
+                $ret['list'] = $this->get_file_list($files);
                 $url = DOCUMENTFEED_URL;
                 $ret['list'][] =  array(
                     'title' => $title,
                     'url' => $url,
                     'source' => $url,
-                    'date'   => usertime(strtotime(time())),
                     'children' => array(),
                     'path' => base64_encode('User Files'),
                     'thumbnail' => (string) $OUTPUT->pix_url('f/folder-64')
                 );
+//                'date'   => usertime(strtotime(time())),
 
                 // check to see if we even have a departmental account for this department but don't show the departmental collection if we're already in it indicated by $wdir
                 // TODO: this needs to change if we eliminate morsle table, but if the read-only or writeable folders get renamed then we need the table
@@ -364,13 +365,110 @@ class repository_morsle extends repository {
                             'date'   => usertime(strtotime(time())),
                             'children' => array(),
                             'path' => base64_encode($deptstr),
-                            'thumbnail' => (string) $OUTPUT->pix_url('f/folder-64')
+                            'icon' => (string) $OUTPUT->pix_url('f/folder-64')
                     );
                 }
                 $ret['path'][]['name'] = 'Morsle Files';
         }
         return $ret;
     }
+
+    public function get_file_list($getfiles){
+//		require_once('constants.php');
+        global $CFG, $OUTPUT;
+/*
+        $url = get_morsle_url($search);
+        if (array_key_exists('path', $search)) {
+            $path = $search['path'] . '/';
+            unset($search['path']);
+        } else {
+            $path = null;
+        }
+        foreach ($search as $key=>$param) {
+            if ($key === 'q') {
+                $param = urlencode($param);
+            }
+            $params[$key] = trim($param);
+        }
+*/
+//       	$url .= '?' . implode_assoc('=', '&', $params);
+
+//        $content = twolegged($url, $params, 'GET');
+//       	$content = $this->get($url, $params, null);
+//        $xml = new SimpleXMLElement($content->response);
+
+//        $files = array();
+//        $repolink = "$CFG->wwwroot/repository/repository_ajax.php?action=list&p=";
+        foreach($getfiles['modelData']['items'] as $gdoc){
+//            $docid  = (string) $gdoc->children('http://schemas.google.com/g/2005')->resourceId;
+//            list($type, $docid) = explode(':', $docid);
+            // FIXME: We're making hard-coded choices about format here.
+            // If the repo api can support it, we could let the user
+            // chose.
+/*
+            switch($gdoc->type){
+                case 'folder':
+                    break;
+                case 'document':
+                    $temptitle = 'temp.doc';
+                    break;
+                case 'presentation':
+                    $temptitle = 'temp.ppt';
+                    break;
+                case 'spreadsheet':
+                    $temptitle = 'temp.xls';
+                    break;
+                case 'pdf':
+                    $temptitle  = 'temp.pdf';
+                    break;
+                default:
+                    $temptitle = $gdoc->title;
+            }
+*/
+//            $source = (string) get_href_noentry($gdoc, GDOC_ALT_REL);
+            // TODO: get this thumbnail working with the display
+//            $iconlink = '<img src="' . (string) get_href_noentry($gdoc, GDOC_THUMB_REL) . '" />';
+//            if(!empty($source)){
+                if ($type == 'folder') {
+                    echo null;
+                    $files[] =  array(
+                        'title' => $gdoc['title'],
+                        'url' => $gdoc['alternateLink'],
+                        'source' => $gdoc['alternateLink'],
+                        'date'   => usertime(strtotime($gdoc['modifiedDate'])),
+                        'thumbnail' => (string) $OUTPUT->pix_url($gdoc['iconLink'])
+                    );
+//                    'children' => array(),
+//                        'path' => base64_encode($docid . '|' . $path . $title),
+//	                    'page' => base64_encode($docid),
+                } else {
+                    $files[] =  array(
+                        'title' => $gdoc['title'],
+                        'url' => $gdoc['alternateLink'],
+                        'source' => $$gdoc['alternateLink'],
+//	                	'url' => "{$gdoc->link[0]->attributes()->href}",
+//	                    'source' => "{$gdoc->link[0]->attributes()->href}",
+                        'date'   => usertime(strtotime($gdoc['modifiedDate'])),
+                        'icon' => $gdoc['iconLink']
+                    );
+//                    'thumbnail' => (string) $OUTPUT->pix_url($gdoc['thumbnailLink'])
+                }
+//            }
+        }
+        return $files;
+    }
+
+    function get_doc_feed($morsle, $collectionid, $max = 1000) {
+        $drive = new Google_Service_Drive($morsle->client);
+        $resource = $drive->files;
+        $searchtime = time() - (60*60*24*365*2);
+        $date = new DateTime(date('y-m-d', $searchtime));
+        $formatdate = $date->format("Y-m-d\TH:i:sP");
+
+        $files = $resource->listFiles(array("q" => "'$collectionid' in parents and trashed = false and modifiedDate > '$formatdate'", 'maxResults' => $max));
+        return $files;
+    }
+
 
     // TODO: where's this getting called from?  there's not much we need here, could also add in the parameters from get_listing instead of calling it
     public function search($search_text, $page = 0) {
@@ -387,6 +485,7 @@ class repository_morsle extends repository {
         fclose($fp);
         return array('path'=>$path, 'url'=>$url);
     }
+
     public function get_link($encoded) {
         return $encoded;
     }

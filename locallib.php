@@ -197,7 +197,6 @@ class morsle_oauth_request extends google_oauth {
 //        unset($options['repo_id']);
 
 	    // Establish an OAuth consumer based on our admin 'credentials'
-
 	    if ( !$CONSUMER_KEY = get_config('morsle','consumer_key')) {
             throw new moodle_exception('Consumer key not set up');
 	    }
@@ -205,7 +204,6 @@ class morsle_oauth_request extends google_oauth {
         	throw new moodle_exception('Consumer secret not set up');
 
         }
-
 //    	parent::__construct($CONSUMER_KEY, $CONSUMER_SECRET, $returnurl->out(false), morsle_docs::REALM);
 
 	    // set up variables and parameters
@@ -330,7 +328,6 @@ function get_morsle_url(&$search) {
 }
 
 function build_user($user = null) {
-
 	if ( !$CONSUMER_KEY = get_config('morsle','consumer_key')) {
         throw new moodle_exception('Consumer key not set up');
     }
